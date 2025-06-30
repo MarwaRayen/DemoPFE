@@ -5,6 +5,8 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from captum.attr import Occlusion
+
 
 
 from multimodal_utils import (
@@ -14,7 +16,19 @@ from multimodal_utils import (
 )
 
 
-from explainability_utils import compute_integrated_gradients, visualize_attributions
+
+from explainability_utils import (
+    compute_integrated_gradients,
+    generate_ig_visualization_streamlit,
+    compute_gradcam,
+    generate_gradcam_visualization_streamlit,
+    generate_deeplift_visualization_streamlit,
+    generate_guided_backprop_visualization_streamlit,
+    generate_occlusion_visualization_streamlit
+)
+
+
+from explainability_utils import compute_integrated_gradients, visualize_attributions, generate_ig_visualization_streamlit
 
 # Page configuration
 st.set_page_config(page_title="Multimodal DR Prediction", layout="centered")
@@ -77,111 +91,78 @@ if clarus_file and plexelite_file:
     st.markdown("Below are visualizations of the most influential regions in the input images using different explainability techniques. A note indicates which modality yielded stronger results.")
 
 
-    # Integrated Gradients
-    # Integrated Gradients
     with st.expander("🟡 Integrated Gradients", expanded=True):
         st.markdown("✅ Ranked best for **CLARUS** images.")
+        
+        with st.spinner("Generating Integrated Gradients explanations..."):
 
-        try:
-            with st.spinner("Computing Integrated Gradients..."):
-                model.eval()
+            # Compute IG attributions
+            clarus_attr, plexelite_attr = compute_integrated_gradients(
+                model, clarus_tensor, plexelite_tensor, predicted_class, device
+            )
 
-                # Define modality-isolated forward functions with batch-safe dummy tensors
-                def clarus_forward(x):
-                    batch_size = x.size(0)
-                    dummy_plex = torch.zeros(batch_size, *plexelite_tensor.shape[1:], device=device)
-                    return model(x, dummy_plex)
+            # Enhanced visualization
+            fig_clarus, fig_plexelite = generate_ig_visualization_streamlit(
+                clarus_tensor, plexelite_tensor, clarus_attr, plexelite_attr, predicted_class
+            )
 
-                def plexelite_forward(x):
-                    batch_size = x.size(0)
-                    dummy_clarus = torch.zeros(batch_size, *clarus_tensor.shape[1:], device=device)
-                    return model(dummy_clarus, x)
+            # Display
+            st.pyplot(fig_clarus)
+            st.pyplot(fig_plexelite)
 
-                # Initialize Integrated Gradients
-                clarus_ig = IntegratedGradients(clarus_forward)
-                plexelite_ig = IntegratedGradients(plexelite_forward)
-
-                # Compute attributions with lower n_steps for performance
-                clarus_attr = clarus_ig.attribute(
-                    clarus_tensor.to(device),
-                    baselines=torch.zeros_like(clarus_tensor).to(device),
-                    target=predicted_class,
-                    n_steps=10
-                )
-
-                plexelite_attr = plexelite_ig.attribute(
-                    plexelite_tensor.to(device),
-                    baselines=torch.zeros_like(plexelite_tensor).to(device),
-                    target=predicted_class,
-                    n_steps=10
-                )
-
-                # Improved attribution visualization
-                def visualize(attr, original):
-                    try:
-                        attr = torch.abs(attr).squeeze().cpu().detach().numpy()
-                        if attr.ndim == 3:
-                            attr = np.mean(attr, axis=0)  # better contrast than sum
-                        attr = (attr - attr.min()) / (attr.max() - attr.min() + 1e-8)
-
-                        original = original.squeeze().cpu().detach().numpy()
-                        if original.ndim == 3:
-                            original = np.transpose(original, (1, 2, 0))
-                        original = (original - original.min()) / (original.max() - original.min() + 1e-8)
-
-                        # Resize attr map if needed
-                        if attr.shape != original.shape[:2]:
-                            from skimage.transform import resize
-                            attr = resize(attr, original.shape[:2], anti_aliasing=True)
-
-                        heatmap = np.stack([attr]*3, axis=-1)
-                        overlay = 0.3 * original + 0.7 * heatmap
-
-                        return np.clip(overlay, 0, 1)
-                    except Exception as e:
-                        st.warning(f"Visualization failed: {str(e)}")
-                        return None
-
-                # Generate overlays
-                clarus_overlay = visualize(clarus_attr, clarus_tensor)
-                plexelite_overlay = visualize(plexelite_attr, plexelite_tensor)
-
-            # Display side-by-side overlays
-            col1, col2 = st.columns(2)
-            with col1:
-                if clarus_overlay is not None:
-                    st.image(clarus_overlay, caption="CLARUS - Integrated Gradients", use_column_width=True)
-            with col2:
-                if plexelite_overlay is not None:
-                    st.image(plexelite_overlay, caption="PLEXELITE - Integrated Gradients", use_column_width=True)
-
-        except Exception as e:
-            st.error(f"Integrated Gradients failed: {str(e)}")
-
-
-                
 
 
     # Grad-CAM
     with st.expander("🔴 Grad-CAM", expanded=False):
         st.markdown("✅ Most informative for **PLEXELITE** images.")
-        # Implement Grad-CAM attribution and display
-        st.empty()
+        with st.spinner("Generating Grad-CAM explanations..."):
+        
+            clarus_cam, plexelite_cam = compute_gradcam(
+                model, clarus_tensor, plexelite_tensor, predicted_class, device
+            )
+
+            fig_gc_clarus = generate_gradcam_visualization_streamlit(
+                clarus_tensor, clarus_cam, f"CLARUS Grad-CAM - Class {predicted_class}"
+            )
+            fig_gc_plexelite = generate_gradcam_visualization_streamlit(
+                plexelite_tensor, plexelite_cam, f"PLEXELITE Grad-CAM - Class {predicted_class}"
+            )
+
+            st.pyplot(fig_gc_clarus)
+            st.pyplot(fig_gc_plexelite)
+
+
 
     # DeepLIFT
     with st.expander("🟣 DeepLIFT", expanded=False):
         st.markdown("✅ Effective on both modalities.")
-        # Implement DeepLIFT attribution and display
-        st.empty()
+        
+        with st.spinner("Generating DeepLIFT explanations..."):
 
+            fig_clarus_dl, fig_plexelite_dl = generate_deeplift_visualization_streamlit(
+                model, clarus_tensor, plexelite_tensor, predicted_class, device
+            )
+
+            st.pyplot(fig_clarus_dl)
+            st.pyplot(fig_plexelite_dl)
     # Guided Backpropagation
     with st.expander("🔵 Guided Backpropagation", expanded=False):
         st.markdown("✅ Highlighted fine features in **PLEXELITE**.")
-        # Implement Guided Backpropagation attribution and display
-        st.empty()
+        
+        fig_clarus_gb, fig_plexelite_gb = generate_guided_backprop_visualization_streamlit(
+            model, clarus_tensor, plexelite_tensor, predicted_class, device
+        )
 
-    # Occlusion
+        st.pyplot(fig_clarus_gb)
+        st.pyplot(fig_plexelite_gb)
+
+
     with st.expander("🟢 Occlusion", expanded=False):
         st.markdown("✅ More informative for **PLEXELITE** structures.")
-        # Implement Occlusion attribution and display
-        st.empty()
+        with st.spinner("Generating Occlusion explanations..."):
+            fig_clarus, fig_plexelite = generate_occlusion_visualization_streamlit(
+                clarus_tensor, plexelite_tensor, model, predicted_class, device
+            )
+            st.pyplot(fig_clarus)
+            st.pyplot(fig_plexelite)
+

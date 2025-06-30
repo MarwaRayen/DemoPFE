@@ -72,17 +72,38 @@ def apply_clahe_to_grayscale_image(img):
     return Image.fromarray(rgb_img)
 
 
+# def preprocess_images_prediction(clarus_img, plexelite_img_bmp):
+#     plexelite_gray = np.array(plexelite_img_bmp.convert("L"))  # ensure grayscale
+#     plexelite_clahe = apply_clahe_to_grayscale_image(plexelite_gray)
+
+#     transform_clarus = transforms.Compose([
+#         transforms.CenterCrop(448),
+#         transforms.ToTensor(),
+#         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+#     ])
+#     transform_plexelite = transforms.Compose([
+#         transforms.Resize((448, 448)),
+#         transforms.ToTensor(),
+#         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+#     ])
+
+#     clarus_tensor = transform_clarus(clarus_img).unsqueeze(0)
+#     plexelite_tensor = transform_plexelite(plexelite_clahe).unsqueeze(0)
+
+#     return clarus_tensor, plexelite_tensor
+
+
 def preprocess_images_prediction(clarus_img, plexelite_img_bmp):
     plexelite_gray = np.array(plexelite_img_bmp.convert("L"))  # ensure grayscale
     plexelite_clahe = apply_clahe_to_grayscale_image(plexelite_gray)
 
     transform_clarus = transforms.Compose([
-        transforms.CenterCrop(448),
+        transforms.Resize((512, 512)),  # instead of CenterCrop
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
     transform_plexelite = transforms.Compose([
-        transforms.Resize((448, 448)),
+        transforms.Resize((512, 512)),  # keep this for consistency
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
@@ -91,6 +112,7 @@ def preprocess_images_prediction(clarus_img, plexelite_img_bmp):
     plexelite_tensor = transform_plexelite(plexelite_clahe).unsqueeze(0)
 
     return clarus_tensor, plexelite_tensor
+
 
 
 # -------------------------------
