@@ -65,6 +65,20 @@ class RES50D(nn.Module):
         return self.backbone(x)
     
 
+class RES50DM(nn.Module):
+    def __init__(self, num_classes=6, pretrained=True):
+        super(RES50DM, self).__init__()
+        
+        # Load the ResNet50D model from timm
+        self.backbone = timm.create_model(
+            'resnet50d',
+            pretrained=pretrained,
+            num_classes=num_classes
+        )
+    
+    def forward(self, x):
+        return self.backbone(x)
+
 
 def load_model_DR_CLASS(weights_path, device='cpu'):
     """
@@ -82,6 +96,29 @@ def load_model_DR_PRED(weights_path, device='cpu'):
     Load the SimpleModel with the given weights.
     """
     model = RES50D(num_classes=6)
+    checkpoint = torch.load(weights_path, map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.to(device)
+    model.eval()
+    return model
+
+
+def load_model_DME_CLASS(weights_path, device='cpu'):
+    """
+    Load the SimpleModel with the given weights.
+    """
+    model = RES50DM(num_classes=3)
+    checkpoint = torch.load(weights_path, map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.to(device)
+    model.eval()
+    return model
+
+def load_model_DME_PRED(weights_path, device='cpu'):
+    """
+    Load the SimpleModel with the given weights.
+    """
+    model = RES50DM(num_classes=3)
     checkpoint = torch.load(weights_path, map_location=device)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)

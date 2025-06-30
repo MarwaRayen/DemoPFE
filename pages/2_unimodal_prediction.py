@@ -1,15 +1,10 @@
 import streamlit as st
 import sys
 import os
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-print("Adding to sys.path:", parent_dir)
-sys.path.append(parent_dir)
-
-
 from PIL import Image
 import torch
 import unimodal_utils as unimodal_utils
-from unimodal_utils import load_model_DR_PRED, predict_from_image
+from unimodal_utils import load_model_DR_PRED, predict_from_image, load_model_DME_CLASS
 
 
 # Set page config (optional)
@@ -23,7 +18,7 @@ uploaded_file = st.file_uploader("📤 Upload a retinal image (UWF)", type=["png
 
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption="🖼️ Uploaded Image", use_column_width=True)
+    st.image(image, caption="🖼️ Uploaded Image", use_container_width=True)
     
     # Load model
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -69,13 +64,13 @@ if uploaded_file:
     
     
     # Use the corrected model loading function
-    model = load_model_DR_PRED(weights_path="models/uni_classification_res50_model.pth", device=device)
+    model = load_model_DME_CLASS(weights_path="models/best_res50d_model_DME_RC_classification.pth", device=device)
     
     # Predict
     with st.spinner("🔍 Classifying..."):
         predicted_class, probabilities = predict_from_image(image, model, device=device)
 
-    class_names = ['No DR (0)', 'Mild (1)', 'Moderate (2)', 'Severe (3)', 'Proliferative (4)', 'PPR (5)']
+    class_names = ['Early (0)', 'Advanced (1)', 'Severe (2)']
     
     # Show result
     st.subheader("✅ Prediction Result")
